@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
+using UnityEditor;
 using UnityEngine;
 
 public class PlayerController : NetworkBehaviour
@@ -53,20 +54,28 @@ public class PlayerController : NetworkBehaviour
         Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         mousePosition.z = 0f;
 
-        RequestAttackServerRpc();
         RequestAttackAimServerRpc(mousePosition);
+
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            RequestAttackServerRpc(0.5f, mousePosition);
+        }
+        if (Input.GetKeyUp(KeyCode.E))
+        {
+            RequestAttackServerRpc(-0.5f, mousePosition);
+        }
     }
 
 
     [ServerRpc]
-    private void RequestPlayerMoveServerRpc(Vector3 movementDirection)
+    private void RequestPlayerMoveServerRpc(Vector3 movementDirection, ServerRpcParams serverRpcParams = default)
     {
         Vector3 moveVelocity = movementDirection * movementSpeed;
         rb.velocity = new Vector2(moveVelocity.x, rb.velocity.y);
     }
 
     [ServerRpc]
-    private void RequestPlayerJumpServerRpc()
+    private void RequestPlayerJumpServerRpc(ServerRpcParams serverRpcParams = default)
     {
         if (isGrounded)
         {
@@ -76,7 +85,7 @@ public class PlayerController : NetworkBehaviour
     }
 
     [ServerRpc]
-    private void RequestAttackAimServerRpc(Vector3 mousePosition) 
+    private void RequestAttackAimServerRpc(Vector3 mousePosition, ServerRpcParams serverRpcParams = default) 
     {
         Vector3 directionToMouse = mousePosition - transform.position;
         directionToMouse.Normalize();
@@ -90,15 +99,28 @@ public class PlayerController : NetworkBehaviour
 
 
     [ServerRpc]
-    private void RequestAttackServerRpc()
+    private void RequestAttackServerRpc(float range, Vector3 mousePosition, ServerRpcParams serverRpcParams = default)
     {
-        if (Input.GetMouseButtonDown(0))
+        attackRadius += range;
+
+        Vector3 directionToMouse = mousePosition - meleeAttack.position;
+        directionToMouse.Normalize(); // Ensure it's a unit vector
+
+        RaycastHit2D[] hits = Physics2D.RaycastAll(meleeAttack.position, directionToMouse, range);
+
+        Debug.DrawRay(meleeAttack.position, directionToMouse * range, Color.green, 2f);
+
+        foreach (RaycastHit2D hit in hits)
         {
-            attackRadius += .5f;
-        }
-        if (Input.GetMouseButtonUp(0))
-        {
-            attackRadius -= .5f;
+            if (hit.collider != null)
+            {
+                if (hit.collider.gameObject.tag == "Player")
+                {
+                    hit.rigidbody.AddForce(directionToMouse * 10, ForceMode2D.Impulse);
+                    hit.rigidbody.AddForce(Vector2.up * 10, ForceMode2D.Impulse);
+                    break;
+                }
+            }
         }
     }
 
