@@ -1,12 +1,11 @@
 using System.Collections;
-using System.Collections.Generic;
 using Unity.Netcode;
-using UnityEditor;
 using UnityEngine;
 
 public class PlayerController : NetworkBehaviour
 {
     [SerializeField] private Rigidbody2D rb;
+    [SerializeField] private Animator animator;
 
     [SerializeField] private Transform meleeAttack;
     [SerializeField] private float attackRadius = 2f;
@@ -17,8 +16,6 @@ public class PlayerController : NetworkBehaviour
 
     private bool isGrounded = true;
 
-    private GameObject currentOneWayPlatform;
-
     private void Update()
     {
         if (!IsOwner) return;
@@ -26,6 +23,8 @@ public class PlayerController : NetworkBehaviour
         HandlePlayerMovement();
         HandlePlayerJump();
         HandlePlayerAttack();
+        HandlePlatformSwitch();
+        HandlePlayerTaunt();
     }
 
     private void HandlePlayerMovement()
@@ -56,16 +55,31 @@ public class PlayerController : NetworkBehaviour
 
         RequestAttackAimServerRpc(mousePosition);
 
-        if (Input.GetKeyDown(KeyCode.E))
+        if (Input.GetMouseButtonDown(0))
         {
             RequestAttackServerRpc(0.5f, mousePosition);
         }
-        if (Input.GetKeyUp(KeyCode.E))
+        if (Input.GetMouseButtonUp(0))
         {
             RequestAttackServerRpc(-0.5f, mousePosition);
         }
     }
 
+    private void HandlePlatformSwitch()
+    {
+        if (Input.GetKey(KeyCode.S))
+        {
+            RequestPlatformSwitchServerRpc();
+        }
+    }
+
+    private void HandlePlayerTaunt()
+    {
+        if (Input.GetKey(KeyCode.LeftControl))
+        {
+            RequestPlayerTauntServerRpc();
+        }
+    }
 
     [ServerRpc]
     private void RequestPlayerMoveServerRpc(Vector3 movementDirection, ServerRpcParams serverRpcParams = default)
@@ -104,7 +118,7 @@ public class PlayerController : NetworkBehaviour
         attackRadius += range;
 
         Vector3 directionToMouse = mousePosition - meleeAttack.position;
-        directionToMouse.Normalize(); // Ensure it's a unit vector
+        directionToMouse.Normalize();
 
         RaycastHit2D[] hits = Physics2D.RaycastAll(meleeAttack.position, directionToMouse, range);
 
@@ -124,6 +138,45 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    [ServerRpc]
+    private void RequestPlayerTauntServerRpc(ServerRpcParams serverRpcParams = default)
+    {
+        animator.Play("Taunt");
+    }
+
+    [ServerRpc]
+    private void RequestPlatformSwitchServerRpc(ServerRpcParams serverRpcParams = default)
+    {
+        RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, Vector2.down, 0.8f);
+        Debug.DrawRay(transform.position, Vector2.down * 0.8f, Color.red, 2f);
+
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider != null)
+            {
+                if (hit.collider.gameObject.tag == "OneWayPlatform")
+                {
+                    IgnorePlatformForServerRpc();
+                    break;
+                }
+            }
+        }
+    }
+
+    [ServerRpc]
+    private void IgnorePlatformForServerRpc(ServerRpcParams serverRpcParams = default)
+    {
+        gameObject.layer = LayerMask.NameToLayer("IgnoreOneWayPlatform");
+        StartCoroutine(ResetPlayerLayer());
+    }
+
+    private IEnumerator ResetPlayerLayer()
+    {
+        yield return new WaitForSeconds(0.2f);
+        gameObject.layer = LayerMask.NameToLayer("Player");
+    }
+
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
@@ -134,32 +187,6 @@ public class PlayerController : NetworkBehaviour
         if (collision.gameObject.CompareTag("OneWayPlatform"))
         {
             isGrounded = true;
-            currentOneWayPlatform = collision.gameObject;
-        }
-    }
-
-    private void OnCollisionStay2D(Collision2D collision)
-    {
-        if (collision.gameObject.CompareTag("OneWayPlatform"))
-        {
-            if (Input.GetKeyDown(KeyCode.S)) 
-            {
-                collision.gameObject.GetComponent<PlatformEffector2D>().surfaceArc = 0f;
-            }
-        }
-    }
-
-    private void OnCollisionExit2D(Collision2D collision)
-    {
-        if (collision.gameObject.CompareTag("Platform"))
-        {
-
-        }
-
-        if (collision.gameObject.CompareTag("OneWayPlatform"))
-        {
-            currentOneWayPlatform = null;
-            collision.gameObject.GetComponent<PlatformEffector2D>().surfaceArc = 180f;
         }
     }
 }
