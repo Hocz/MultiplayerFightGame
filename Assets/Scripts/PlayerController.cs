@@ -7,14 +7,30 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private Animator animator;
 
+
     [SerializeField] private Transform meleeAttack;
     [SerializeField] private float attackRadius = 2f;
 
 
     [SerializeField] private float movementSpeed = 5f;
     [SerializeField] private float jumpForce = 8f;
-
+    
     private bool isGrounded = true;
+
+
+    [SerializeField] private SpriteRenderer emoteIcon;
+    [SerializeField] private Sprite laughEmote;
+    [SerializeField] private Sprite sadEmote;
+    [SerializeField] private Sprite angryEmote;
+    [SerializeField] private Sprite deadEmote;
+    [SerializeField] private Sprite poopEmote;
+
+    private bool isEmoting = false;
+
+    private void Awake()
+    {
+        emoteIcon.sprite = null;
+    }
 
     private void Update()
     {
@@ -25,6 +41,7 @@ public class PlayerController : NetworkBehaviour
         HandlePlayerAttack();
         HandlePlatformSwitch();
         HandlePlayerTaunt();
+        HandlePlayerEmote();
     }
 
     private void HandlePlayerMovement()
@@ -75,9 +92,33 @@ public class PlayerController : NetworkBehaviour
 
     private void HandlePlayerTaunt()
     {
-        if (Input.GetKey(KeyCode.LeftControl))
+        if (Input.GetKey(KeyCode.E))
         {
             RequestPlayerTauntServerRpc();
+        }
+    }
+
+    private void HandlePlayerEmote()
+    {
+        if (Input.GetKey(KeyCode.Alpha1))
+        {
+            RequestPlayerEmoteServerRpc(0);
+        }
+        if (Input.GetKey(KeyCode.Alpha2))
+        {
+            RequestPlayerEmoteServerRpc(1);
+        }
+        if (Input.GetKey(KeyCode.Alpha3))
+        {
+            RequestPlayerEmoteServerRpc(2);
+        }
+        if (Input.GetKey(KeyCode.Alpha4))
+        {
+            RequestPlayerEmoteServerRpc(3);
+        }
+        if (Input.GetKey(KeyCode.Alpha5))
+        {
+            RequestPlayerEmoteServerRpc(4);
         }
     }
 
@@ -177,6 +218,56 @@ public class PlayerController : NetworkBehaviour
     }
 
 
+    [ServerRpc]
+    private void RequestPlayerEmoteServerRpc(int type, ServerRpcParams serverRpcParams = default)
+    {
+        UpdateEmoteClientRpc(type);
+    }
+
+    [ClientRpc]
+    private void UpdateEmoteClientRpc(int type)
+    {
+        if (!isEmoting)
+        {
+            isEmoting = true;
+
+            switch (type)
+            {
+                case 0:
+                    emoteIcon.sprite = laughEmote;
+                    StartCoroutine(ResetIcon());
+                    break;
+                case 1:
+                    emoteIcon.sprite = sadEmote;
+                    StartCoroutine(ResetIcon());
+                    break;
+                case 2:
+                    emoteIcon.sprite = angryEmote;
+                    StartCoroutine(ResetIcon());
+                    break;
+                case 3:
+                    emoteIcon.sprite = deadEmote;
+                    StartCoroutine(ResetIcon());
+                    break;
+                case 4:
+                    emoteIcon.sprite = poopEmote;
+                    StartCoroutine(ResetIcon());
+                    break;
+
+                default:
+                    emoteIcon.sprite = null;
+                    break;
+            }
+        }
+    }
+
+    private IEnumerator ResetIcon()
+    {
+        yield return new WaitForSeconds(2f);
+        emoteIcon.sprite = null;
+        isEmoting = false;
+    }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
@@ -187,6 +278,11 @@ public class PlayerController : NetworkBehaviour
         if (collision.gameObject.CompareTag("OneWayPlatform"))
         {
             isGrounded = true;
+        }
+
+        if (collision.gameObject.CompareTag("DeathBarrier"))
+        {
+            transform.position = Vector3.zero;
         }
     }
 }

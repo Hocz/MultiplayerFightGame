@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Platform
   - OneWayPlatform
+  - DeathBarrier
   layers:
   - Default
   - TransparentFX
